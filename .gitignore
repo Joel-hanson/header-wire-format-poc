@@ -1,3 +1,10 @@
 .history
 .DS_Store
-*/target
+**/target/
+*.class
+*.jar
+!connect/**/*.jar
+.idea/
+*.iml
+.vscode/
+*.log

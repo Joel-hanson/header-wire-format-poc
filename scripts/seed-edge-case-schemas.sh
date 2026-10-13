@@ -5,7 +5,7 @@
 #   seed-edge-case-schemas.sh pre   # before the first `produce`
 #   seed-edge-case-schemas.sh mid   # after `produce`, before `produce-v2`
 #
-# Apicurio 3.3.2 behaviour seen in quick manual probes (re-verify, see TEST-PLAN Phase A):
+# Apicurio 3.3.2 behaviour seen in quick manual probes:
 #   - contentId is shared by identical content across subjects; globalId is per version.
 #   - contentId and globalId appear to draw from ONE counter, so they diverge as soon
 #     as identical content is registered twice.

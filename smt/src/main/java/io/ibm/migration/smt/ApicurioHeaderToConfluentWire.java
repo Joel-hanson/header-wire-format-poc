@@ -22,10 +22,11 @@ import java.util.Map;
  * <p>This SMT extracts the header ID, prepends the Confluent 5-byte prefix, and
  * optionally strips Apicurio headers. It does not call any registry — the ID in
  * the header must already match the ID imported into Confluent Schema Registry
- * (ccompat contentId by default).
+ * (align with APICURIO_CCOMPAT_LEGACY_ID_MODE_ENABLED / producer USE_ID).
  *
- * <p>Works with MirrorSourceConnector and with Confluent ReplicatorSourceConnector
+ * <p>Works with Confluent ReplicatorSourceConnector and MirrorSourceConnector
  * when key/value/header converters are ByteArrayConverter.
+ * Prefer Replicator over MirrorMaker 2 on a Confluent destination.
  */
 public abstract class ApicurioHeaderToConfluentWire<R extends ConnectRecord<R>>
         implements Transformation<R> {
@@ -60,9 +61,10 @@ public abstract class ApicurioHeaderToConfluentWire<R extends ConnectRecord<R>>
                     Importance.HIGH, "Header name for Apicurio contentId (8-byte BE long).")
             .define(GLOBAL_ID_HEADER_CONFIG, Type.STRING, DEFAULT_GLOBAL_ID_HEADER,
                     Importance.HIGH, "Header name for Apicurio globalId (8-byte BE long).")
-            .define(PREFER_CONTENT_ID_CONFIG, Type.BOOLEAN, true, Importance.HIGH,
-                    "Prefer contentId header over globalId when both are present "
-                            + "(matches default ccompat ID mapping).")
+            .define(PREFER_CONTENT_ID_CONFIG, Type.BOOLEAN, false, Importance.HIGH,
+                    "Prefer contentId header over globalId when both are present. "
+                            + "Default false matches Apicurio 2.x serde USE_ID=globalId. "
+                            + "Set true only when producers used USE_ID=contentId.")
             .define(STRIP_APICURIO_HEADERS_CONFIG, Type.BOOLEAN, true, Importance.MEDIUM,
                     "Remove Apicurio headers after rewrite.")
             .define(APPLIES_TO_CONFIG, Type.STRING, "value", Importance.HIGH,
@@ -118,51 +120,46 @@ public abstract class ApicurioHeaderToConfluentWire<R extends ConnectRecord<R>>
             return record;
         }
 
-        // Payload-mode record (magic byte first). Header-mode records are never touched here.
+        // Headers first. Raw Avro can start with 0x00 (nullable union, int 0, false, empty
+        // string). Checking the magic byte before headers would misclassify those header-mode
+        // records as payload-mode and leave them unreframed when payload.id.length=4.
+        Long schemaId = resolveSchemaId(record);
+        if (schemaId != null) {
+            if (schemaId < 0 || schemaId > Integer.MAX_VALUE) {
+                throw new IllegalStateException(
+                        "Schema ID " + schemaId + " does not fit in Confluent's 4-byte wire ID");
+            }
+            byte[] rewritten = prependConfluentPrefix(payload, schemaId.intValue());
+            R out = withPayload(record, rewritten);
+            if (stripApicurioHeaders) {
+                out.headers().remove(contentIdHeader);
+                out.headers().remove(globalIdHeader);
+                out.headers().remove("apicurio.value.encoding");
+                out.headers().remove("apicurio.key.encoding");
+                out.headers().remove("apicurio.value.artifactId");
+                out.headers().remove("apicurio.key.artifactId");
+                out.headers().remove("apicurio.value.groupId");
+                out.headers().remove("apicurio.key.groupId");
+                out.headers().remove("apicurio.value.version");
+                out.headers().remove("apicurio.key.version");
+            }
+            return out;
+        }
+
+        // No Apicurio ID header — payload mode (or already Confluent).
         if (payload.length >= 5 && payload[0] == MAGIC_BYTE) {
             return rewritePayloadId(record, payload);
         }
-
-        Long schemaId = resolveSchemaId(record);
-        if (schemaId == null) {
-            // No Apicurio ID header — pass through unchanged.
-            return record;
-        }
-        if (schemaId < 0 || schemaId > Integer.MAX_VALUE) {
-            throw new IllegalStateException(
-                    "Schema ID " + schemaId + " does not fit in Confluent's 4-byte wire ID");
-        }
-
-        byte[] rewritten = prependConfluentPrefix(payload, schemaId.intValue());
-
-        R out = withPayload(record, rewritten);
-
-        // newRecord copies headers; strip Apicurio headers on the copy if requested.
-        if (stripApicurioHeaders) {
-            out.headers().remove(contentIdHeader);
-            out.headers().remove(globalIdHeader);
-            out.headers().remove("apicurio.value.encoding");
-            out.headers().remove("apicurio.key.encoding");
-            out.headers().remove("apicurio.value.artifactId");
-            out.headers().remove("apicurio.key.artifactId");
-            out.headers().remove("apicurio.value.groupId");
-            out.headers().remove("apicurio.key.groupId");
-            out.headers().remove("apicurio.value.version");
-            out.headers().remove("apicurio.key.version");
-        }
-        return out;
+        return record;
     }
 
     /**
      * Rewrite {@code 0x00 + 8-byte ID + body} to {@code 0x00 + 4-byte ID + body} when the
      * configured {@code payload.id.length} says the record carries an 8-byte ID.
-     * Records that carry an Apicurio ID header are header-mode records and are left alone.
+     * Caller must only invoke this when no Apicurio ID header is present.
      */
     private R rewritePayloadId(R record, byte[] payload) {
         if (payloadIdLength.equals(PAYLOAD_ID_LENGTH_4)) {
-            return record;
-        }
-        if (resolveSchemaId(record) != null) {
             return record;
         }
         boolean eightByte;

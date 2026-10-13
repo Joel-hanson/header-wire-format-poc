@@ -44,7 +44,8 @@ services:
     ports:
       - "8081:8080"
     environment:
-      APICURIO_CCOMPAT_LEGACY_ID_MODE_ENABLED: "${LEGACY_ID_MODE:-false}"
+      # true so ccompat .id == globalId (matches 2.x USE_ID=globalId producers + this demo).
+      APICURIO_CCOMPAT_LEGACY_ID_MODE_ENABLED: "${LEGACY_ID_MODE:-true}"
       # 3.x disables deletes by default; edge-case seeding deletes schemas to create ID gaps.
       APICURIO_REST_DELETION_ARTIFACT_ENABLED: "true"
       APICURIO_REST_DELETION_ARTIFACT_VERSION_ENABLED: "true"

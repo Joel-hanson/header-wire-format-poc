@@ -20,22 +20,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * Produces Avro with configurable Apicurio serde settings.
  *
- * <p>Env vars (all optional — defaults match the baseline header-mode behaviour):
+ * <p>Env vars (all optional — defaults match Apicurio 2.x header mode):
  * <ul>
  *   <li>{@code APICURIO_ENABLE_HEADERS} — {@code true} (default) or {@code false} (payload mode)</li>
- *   <li>{@code APICURIO_USE_ID} — {@code contentId} (default) or {@code globalId}</li>
- *   <li>{@code APICURIO_ID_HANDLER} — fully-qualified class name of the IdHandler to use when
- *       headers are off. Default: Apicurio's built-in default (serde-version-dependent).
- *       Use {@code io.apicurio.registry.serde.Legacy4ByteIdHandler} for 4-byte payload IDs
- *       with the 2.x serde.</li>
- *   <li>{@code APICURIO_SUBJECT} — when set, overrides the artifact resolver so the serde resolves
- *       the schema under this explicit artifact ID (subject name) instead of deriving one from
- *       the topic name. Required for cases 3 and 4 which must produce via {@code orders-copy-value}
- *       (globalId ≠ contentId) while still writing records to the normal {@code orders} topic.</li>
+ *   <li>{@code APICURIO_USE_ID} — {@code globalId} (default) or {@code contentId}</li>
+ *   <li>{@code APICURIO_ID_HANDLER} — IdHandler class when headers are off (serde default if unset)</li>
+ *   <li>{@code APICURIO_SUBJECT} — optional explicit artifact ID instead of topic-derived subject</li>
  * </ul>
  *
- * <p>Prints every {@code apicurio.*} header set on each record, with its name and byte length,
- * so Part B test cases can confirm exactly which headers are present.
+ * <p>Prints every {@code apicurio.*} header on each record (name + byte length).
  */
 public final class ApicurioHeaderProducer {
 
@@ -48,10 +41,11 @@ public final class ApicurioHeaderProducer {
         String bootstrap = env("SOURCE_BOOTSTRAP", "localhost:29092");
         String registry  = env("APICURIO_URL", "http://localhost:8081");
 
-        // "default" leaves the property unset so the serde's own default applies
-        // (2.6.5: ENABLE_HEADERS=true, USE_ID=globalId).
+        // Defaults match Apicurio 2.x / Event Streams clients and SMT prefer.content.id=false.
+        // Set APICURIO_USE_ID=contentId (and PREFER_CONTENT_ID=true on the connector) for 3.x-style IDs.
+        // "default" leaves the property unset so the serde's own default applies.
         String  enableHeadersEnv = env("APICURIO_ENABLE_HEADERS", "true");
-        String  useId         = env("APICURIO_USE_ID", IdOption.contentId.name());
+        String  useId         = env("APICURIO_USE_ID", IdOption.globalId.name());
         boolean enableHeaders = enableHeadersEnv.equalsIgnoreCase("default")
                 ? true : Boolean.parseBoolean(enableHeadersEnv);
         String  idHandler     = env("APICURIO_ID_HANDLER", "");

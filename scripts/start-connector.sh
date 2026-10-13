@@ -2,17 +2,15 @@
 # Deploy MirrorSourceConnector + ApicurioHeaderToConfluentWire SMT.
 # This is the open (unlicensed) stand-in for Confluent Replicator + same SMT.
 #
-# PREFER_CONTENT_ID — passed through to transforms.headerToWire.prefer.content.id.
-#   true  (default): use the contentId header — matches ccompat default (legacy mode OFF)
-#   false:            use the globalId header  — matches ccompat in legacy mode ON
-# PAYLOAD_ID_LENGTH — passed through to transforms.headerToWire.payload.id.length.
-#   4    (default): payload-mode records already carry a 4-byte ID; pass through
-#   8:              every payload-mode record carries an 8-byte ID; rewrite all
-#   auto:           detect per record (mixed topics)
+# PREFER_CONTENT_ID — transforms.headerToWire.prefer.content.id
+#   false (default): use globalId header — matches Apicurio 2.x / this demo's producer
+#   true:            use contentId header — set when producers used USE_ID=contentId
+# PAYLOAD_ID_LENGTH — transforms.headerToWire.payload.id.length
+#   4 (default) | 8 | auto
 set -euo pipefail
 
 CONNECT_URL="${CONNECT_URL:-http://localhost:8083}"
-PREFER_CONTENT_ID="${PREFER_CONTENT_ID:-true}"
+PREFER_CONTENT_ID="${PREFER_CONTENT_ID:-false}"
 PAYLOAD_ID_LENGTH="${PAYLOAD_ID_LENGTH:-4}"
 NAME="es-to-cflt-header-rewrite"
 
