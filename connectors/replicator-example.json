@@ -1,0 +1,22 @@
+{
+  "_comment": "Example Confluent ReplicatorSourceConnector config using the same SMT. Requires Confluent Platform license / enterprise replicator plugin. The PoC uses MirrorSourceConnector instead; swap connector.class when licensed.",
+  "name": "es-to-cflt-replicator-header-rewrite",
+  "config": {
+    "connector.class": "io.confluent.connect.replicator.ReplicatorSourceConnector",
+    "topic.whitelist": "orders",
+    "topic.rename.format": "${topic}",
+    "src.kafka.bootstrap.servers": "kafka-source:9092",
+    "dest.kafka.bootstrap.servers": "kafka-dest:9092",
+    "src.consumer.group.id": "replicator-es-to-cflt",
+    "src.key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "src.value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "src.header.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "header.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "transforms": "headerToWire",
+    "transforms.headerToWire.type": "io.ibm.migration.smt.ApicurioHeaderToConfluentWire$Value",
+    "transforms.headerToWire.prefer.content.id": "true",
+    "transforms.headerToWire.strip.apicurio.headers": "true"
+  }
+}
